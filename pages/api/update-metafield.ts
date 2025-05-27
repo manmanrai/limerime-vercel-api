@@ -10,12 +10,40 @@ export default async function handler(
 
   const SHOPIFY_SHOP_DOMAIN = process.env.SHOPIFY_SHOP_DOMAIN;
   const SHOPIFY_ADMIN_API_TOKEN = process.env.SHOPIFY_ADMIN_API_TOKEN;
-  const namespace = 'over-30';
-  const valueType = 'json';
-  const key = 'over-30-key';
-  const { customerId, value } = req.body;
+  const namespace = 'custom';
+  const keys = [
+    'self_birth_date',
+    'under30_a',
+    'under30_a_relationship',
+    'under30_a_birth',
+    'under30_b',
+    'under30_b_relationship',
+    'under30_b_birth',
+    'under30_c',
+    'under30_c_relationship',
+    'under30_c_birth',
+    'under30_d',
+    'under30_d_relationship',
+    'under30_d_birth',
+  ];
+  const valueTypes = {
+    'age': "number_integer",
+    'under30_a': 'single_line_text_field', 
+    'under30_a_relationship': 'list.single_line_text_field',
+    'under30_a_birth': 'date',
+    'under30_b': 'single_line_text_field', 
+    'under30_b_relationship': 'list.single_line_text_field',
+    'under30_b_birth': 'date',
+    'under30_c': 'single_line_text_field', 
+    'under30_c_relationship': 'list.single_line_text_field',
+    'under30_c_birth': 'date',
+    'under30_d': 'single_line_text_field', 
+    'under30_d_relationship': 'list.single_line_text_field',
+    'under30_d_birth': 'date',
+  };
+  const { customerId } = req.body;
 
-  if (!customerId || !namespace || !key || !value || !valueType) {
+  if (!customerId || !namespace) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
@@ -33,19 +61,23 @@ export default async function handler(
     return age < 30;
   }
 
+  // 只取出 keys 中存在於 req.body 的欄位
+  const valueObj: Record<string, string> = {};
+  for (const key of keys) {
+    if (req.body[key] !== undefined) {
+      valueObj[key] = req.body[key];
+    }
+  }
+
+  // 檢查是否有小於 30 歲
   let hasUnder30 = false;
-  try {
-    const valueObj = typeof value === 'string' ? JSON.parse(value) : value;
-    for (const key in valueObj) {
-      if (key.endsWith('birth') || key.endsWith('birth_date')) {
-        if (isUnder30(valueObj[key])) {
-          hasUnder30 = true;
-          break;
-        }
+  for (const key in valueObj) {
+    if (key.endsWith('birth') || key.endsWith('birth_date')) {
+      if (isUnder30(valueObj[key])) {
+        hasUnder30 = true;
+        break;
       }
     }
-  } catch {
-    return res.status(400).json({ error: 'Invalid value format' });
   }
 
   // 取得 customer 目前的 tags
@@ -75,18 +107,6 @@ export default async function handler(
     body: JSON.stringify({ customer: { id: customerId, tags: tags.join(', ') } }),
   });
 
-  const metafieldPayload = {
-    metafield: {
-      namespace,
-      key,  
-      value,
-      type: valueType,
-    },
-  };
-
-  let url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
-  let method = 'POST';
-
   // 取得 customer 的所有 metafields
   const metafieldsRes = await fetch(`https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`, {
     headers: {
@@ -95,31 +115,68 @@ export default async function handler(
     },
   });
   const metafieldsData = await metafieldsRes.json();
-  const existingMetafield = metafieldsData.metafields.find(
-    (metafield: { namespace: string; key: string; id: string }) => metafield.namespace === namespace && metafield.key === key
+  const allMetafields = metafieldsData.metafields || [];
+
+  // 並行更新所有存在的欄位到 metafield
+  await Promise.all(
+    Object.keys(valueObj).map(async (key) => {
+      let metafieldKey = key;
+      let valueType = (valueTypes as Record<string, string>)[key] || 'single_line_text_field';
+      let metafieldValue: string = valueObj[key];
+      // 特殊處理 self_birth_date
+      if (key === 'self_birth_date') {
+        metafieldKey = 'age';
+        valueType = 'number_integer';
+        // 計算年齡
+        const birthDate = new Date(metafieldValue);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+        metafieldValue = age.toString();
+      }
+      if (key.endsWith('_relationship')) {
+        // 若值為空字串，存成空陣列
+        if (!metafieldValue) {
+          metafieldValue = JSON.stringify([]);
+        } else {
+          metafieldValue = JSON.stringify([metafieldValue]);
+        }
+      }
+      const existingMetafield = allMetafields.find(
+        (metafield: { namespace: string; key: string; id: string }) => metafield.namespace === namespace && metafield.key === metafieldKey
+      );
+      const metafieldId = existingMetafield?.id;
+      let url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
+      let method = 'POST';
+      if (metafieldId) {
+        url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${metafieldId}.json`;
+        method = 'PUT';
+      }
+      const metafieldPayload = {
+        metafield: {
+          namespace,
+          key: metafieldKey,
+          value: metafieldValue,
+          type: valueType,
+        },
+      };
+      const shopifyRes = await fetch(url, {
+        method,
+        headers: {
+          'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(metafieldPayload),
+      });
+      const data = await shopifyRes.json();
+      if (!shopifyRes.ok) {
+        throw new Error(JSON.stringify(data.errors || data));
+      }
+    })
   );
-  const metafieldId = existingMetafield?.id;
-
-  // 如果有 metafieldId，則改為更新
-  if (metafieldId) {
-    url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${metafieldId}.json`;
-    method = 'PUT';
-  }
-
-  const shopifyRes = await fetch(url, {
-    method,
-    headers: {
-      'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(metafieldPayload),
-  });
-
-  const data = await shopifyRes.json();
-
-  if (!shopifyRes.ok) {
-    return res.status(shopifyRes.status).json({ error: data.errors || data });
-  }
 
   res.status(200).json({ tags });
 } 
