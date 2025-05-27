@@ -43,7 +43,6 @@ export default async function handler(
     (metafield: { namespace: string; key: string; id: string }) => metafield.namespace === namespace && metafield.key === key
   );
   const metafieldId = existingMetafield?.id;
-  console.log(metafieldId);
 
   // 如果有 metafieldId，則改為更新
   if (metafieldId) {
