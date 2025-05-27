@@ -16,15 +16,6 @@ export default async function handler(
   // 轉成數字型態（可根據需求調整）
   const customerIdNum = Array.isArray(customerId) ? customerId[0] : customerId;
 
-  // 取得 customer 資料
-  const customerRes = await fetch(`https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerIdNum}.json`, {
-    headers: {
-      'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
-      'Content-Type': 'application/json',
-    },
-  });
-  const customerData = await customerRes.json();
-
   // 取得 customer 的所有 metafields
   const metafieldsRes = await fetch(`https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerIdNum}/metafields.json`, {
     headers: {
@@ -33,9 +24,7 @@ export default async function handler(
     },
   });
   const metafieldsData = await metafieldsRes.json();
-
-  res.status(200).json({
-    customer: customerData,
-    metafields: metafieldsData,
-  });
+  const value = metafieldsData.metafields.filter((metafield: { namespace: string; key: string }) => metafield.namespace === 'over-30');
+  const valueJson = JSON.parse(value[0].value);
+  res.status(200).json(valueJson);
 } 

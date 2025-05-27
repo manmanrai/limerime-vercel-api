@@ -10,7 +10,10 @@ export default async function handler(
 
   const SHOPIFY_SHOP_DOMAIN = process.env.SHOPIFY_SHOP_DOMAIN;
   const SHOPIFY_ADMIN_API_TOKEN = process.env.SHOPIFY_ADMIN_API_TOKEN;
-  const { customerId, metafieldId, namespace, key, value, valueType } = req.body;
+  const namespace = 'over-30';
+  const valueType = 'json';
+  const key = 'over-30-key';
+  const { customerId, value } = req.body;
 
   if (!customerId || !namespace || !key || !value || !valueType) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -19,7 +22,7 @@ export default async function handler(
   const metafieldPayload = {
     metafield: {
       namespace,
-      key,
+      key,  
       value,
       type: valueType,
     },
@@ -27,6 +30,20 @@ export default async function handler(
 
   let url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
   let method = 'POST';
+
+  // 取得 customer 的所有 metafields
+  const metafieldsRes = await fetch(`https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`, {
+    headers: {
+      'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
+      'Content-Type': 'application/json',
+    },
+  });
+  const metafieldsData = await metafieldsRes.json();
+  const existingMetafield = metafieldsData.metafields.find(
+    (metafield: { namespace: string; key: string; id: string }) => metafield.namespace === namespace && metafield.key === key
+  );
+  const metafieldId = existingMetafield?.id;
+  console.log(metafieldId);
 
   // 如果有 metafieldId，則改為更新
   if (metafieldId) {
