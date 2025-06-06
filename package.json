@@ -8,15 +8,23 @@
     "start": "next start",
     "lint": "next lint"
   },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node"
+  },
   "dependencies": {
     "next": "15.3.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@types/jest": "^29.5.14",
     "@types/node": "^20",
     "@types/react": "^19.1.5",
     "eslint": "^9",
     "eslint-config-next": "15.3.2",
+    "jest": "^29.7.0",
+    "node-mocks-http": "^1.17.2",
+    "ts-jest": "^29.3.4",
     "typescript": "^5"
   }
 }
