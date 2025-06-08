@@ -66,9 +66,20 @@ export default async function handler(
   let hasUnder30 = false;
   for (const key in valueObj) {
     if (key.endsWith('birth') || key.endsWith('birth_date')) {
-      const birthYear = new Date(valueObj[key]).getFullYear();
-      const currentYear = new Date().getFullYear();
-      if (currentYear - birthYear <= 30) {
+      const birthDate = new Date(valueObj[key]);
+      const today = new Date();
+      // 固定以每年 4/1 為分界
+      const thisYear = today.getFullYear();
+      const borderMonth = 3; // 4月，JS 月份從0開始
+      const borderDay = 1;
+      const borderDate = new Date(thisYear, borderMonth, borderDay);
+      let age = thisYear - birthDate.getFullYear();
+      // 如果生日在今年 4/2 之後，還沒足歲，要減一歲
+      const birthThisYear = new Date(thisYear, birthDate.getMonth(), birthDate.getDate());
+      if (birthThisYear > borderDate) {
+        age--;
+      }
+      if (age < 30) {
         hasUnder30 = true;
         break;
       }
@@ -123,12 +134,16 @@ export default async function handler(
       if (key === 'self_birth_date') {
         metafieldKey = 'age';
         valueType = 'number_integer';
-        // 計算年齡
+        // 計算年齡（同樣以 4/1 為分界）
         const birthDate = new Date(metafieldValue);
         const today = new Date();
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const m = today.getMonth() - birthDate.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        const thisYear = today.getFullYear();
+        const borderMonth = 3; // 4月
+        const borderDay = 1;
+        const borderDate = new Date(thisYear, borderMonth, borderDay);
+        let age = thisYear - birthDate.getFullYear();
+        const birthThisYear = new Date(thisYear, birthDate.getMonth(), birthDate.getDate());
+        if (birthThisYear > borderDate) {
           age--;
         }
         metafieldValue = age.toString();

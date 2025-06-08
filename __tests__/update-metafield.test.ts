@@ -61,6 +61,7 @@ describe('update-metafield API', () => {
     await handler(req, res);
     expect(res._getStatusCode()).toBe(200);
     const data = JSON.parse(res._getData());
+    expect(Array.isArray(data.tags)).toBe(true);
     expect(data.tags).toContain('under30');
     expect(data.tags).not.toContain('above30');
   });
@@ -77,6 +78,7 @@ describe('update-metafield API', () => {
     await handler(req, res);
     expect(res._getStatusCode()).toBe(200);
     const data = JSON.parse(res._getData());
+    expect(Array.isArray(data.tags)).toBe(true);
     expect(data.tags).toContain('under30');
     expect(data.tags).not.toContain('above30');
   });
@@ -92,6 +94,7 @@ describe('update-metafield API', () => {
     });
     await handler(req, res);
     const data = JSON.parse(res._getData());
+    expect(Array.isArray(data.tags)).toBe(true);
     expect(data.tags).toContain('above30');
     expect(data.tags).not.toContain('under30');
   });
@@ -109,7 +112,44 @@ describe('update-metafield API', () => {
     await handler(req, res);
     expect(res._getStatusCode()).toBe(200);
     const data = JSON.parse(res._getData());
+    expect(Array.isArray(data.tags)).toBe(true);
     expect(data.tags).toContain('under30');
     expect(data.tags).not.toContain('above30');
+  });
+
+  it('1995/4/2（未滿 30 歲）應該有 under30 tag', async () => {
+    // 今天是 4/1，1995/4/2 還沒滿 30 歲
+    mockFetch();
+    const { req, res } = createMocks({
+      method: 'POST',
+      body: {
+        customerId: '123',
+        self_birth_date: '1995-04-02',
+      },
+    });
+    await handler(req, res);
+    expect(res._getStatusCode()).toBe(200);
+    const data = JSON.parse(res._getData());
+    expect(Array.isArray(data.tags)).toBe(true);
+    expect(data.tags).toContain('under30');
+    expect(data.tags).not.toContain('above30');
+  });
+
+  it('1995/4/1（剛滿 30 歲）應該有 above30 tag', async () => {
+    // 今天是 4/1，1995/4/1 剛好滿 30 歲
+    mockFetch();
+    const { req, res } = createMocks({
+      method: 'POST',
+      body: {
+        customerId: '123',
+        self_birth_date: '1995-04-01',
+      },
+    });
+    await handler(req, res);
+    expect(res._getStatusCode()).toBe(200);
+    const data = JSON.parse(res._getData());
+    expect(Array.isArray(data.tags)).toBe(true);
+    expect(data.tags).toContain('above30');
+    expect(data.tags).not.toContain('under30');
   });
 }); 
