@@ -152,4 +152,22 @@ describe('update-metafield API', () => {
     expect(data.tags).toContain('above30');
     expect(data.tags).not.toContain('under30');
   });
+
+  it('1995/3/30（已滿 30 歲）應該有 above30 tag', async () => {
+    // 今天是 4/1，1995/3/30 早就滿 30 歲
+    mockFetch();
+    const { req, res } = createMocks({
+      method: 'POST',
+      body: {
+        customerId: '123',
+        self_birth_date: '1995-03-30',
+      },
+    });
+    await handler(req, res);
+    expect(res._getStatusCode()).toBe(200);
+    const data = JSON.parse(res._getData());
+    expect(Array.isArray(data.tags)).toBe(true);
+    expect(data.tags).toContain('above30');
+    expect(data.tags).not.toContain('under30');
+  });
 }); 
