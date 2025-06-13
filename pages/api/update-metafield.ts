@@ -223,6 +223,12 @@ export default async function handler(
           ? `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${metafieldId}.json`
           : `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
         const method = metafieldId ? 'PUT' : 'POST';
+        console.log('metafieldPayload:', {
+          namespace: metafieldNamespace,
+          key: metafieldKey,
+          value: metafieldValue,
+          type: valueType,
+        });
         const metafieldPayload = {
           metafield: {
             namespace: metafieldNamespace,
