@@ -178,6 +178,8 @@ export default async function handler(
           type: valueType,
         },
       };
+      console.log('method', method);
+      console.log('PUTは存在してる');
       console.log('metafieldPayload', metafieldPayload);
       const shopifyRes = await fetch(url, {
         method,
