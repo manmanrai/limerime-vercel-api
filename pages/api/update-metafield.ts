@@ -17,7 +17,7 @@ export default async function handler(
 
   const SHOPIFY_SHOP_DOMAIN = process.env.SHOPIFY_SHOP_DOMAIN;
   const SHOPIFY_ADMIN_API_TOKEN = process.env.SHOPIFY_ADMIN_API_TOKEN;
-  const defaultNamespace = 'custom';
+  const namespace = 'custom';
   const keys = [
     'birth_date',
     'under30_a',
@@ -34,7 +34,7 @@ export default async function handler(
     'under30_d_birth',
   ];
   const valueTypes = {
-  	'birth_date': 'date',
+    'birth_date': 'date',
     'age': "number_integer",
     'under30_a': 'single_line_text_field', 
     'under30_a_relationship': 'list.single_line_text_field',
@@ -51,7 +51,7 @@ export default async function handler(
   };
   const { customerId } = req.body;
 
-  if (!customerId || !defaultNamespace) {
+  if (!customerId || !namespace) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
@@ -134,8 +134,8 @@ export default async function handler(
       let metafieldKey = key;
       let valueType = (valueTypes as Record<string, string>)[key] || 'single_line_text_field';
       let metafieldValue: string = valueObj[key];
-      // 特殊處理 birth_date
-      if (key === 'birth_date') {
+      // 特殊處理 self_birth_date
+      if (key === 'self_birth_date') {
         metafieldKey = 'age';
         valueType = 'number_integer';
         // 計算年齡（同樣以 4/1 為分界）
@@ -161,10 +161,7 @@ export default async function handler(
         }
       }
       const existingMetafield = allMetafields.find(
-        (metafield: { namespace: string; key: string; id: string }) => {
-          const currentNamespace = key === 'birth_date' ? 'facts' : defaultNamespace;
-          return metafield.namespace === currentNamespace && metafield.key === metafieldKey;
-        }
+        (metafield: { namespace: string; key: string; id: string }) => metafield.namespace === namespace && metafield.key === metafieldKey
       );
       const metafieldId = existingMetafield?.id;
       let url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
@@ -173,10 +170,9 @@ export default async function handler(
         url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${metafieldId}.json`;
         method = 'PUT';
       }
-      const currentNamespace = key === 'birth_date' ? 'facts' : defaultNamespace;
       const metafieldPayload = {
         metafield: {
-          namespace: currentNamespace,
+          namespace: key === 'birth_date' ? 'facts' : 'custom',
           key: metafieldKey,
           value: metafieldValue,
           type: valueType,
@@ -209,4 +205,3 @@ export default async function handler(
 
   res.status(200).json({ tags });
 } 
-
