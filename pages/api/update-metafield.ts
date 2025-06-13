@@ -189,7 +189,8 @@ export default async function handler(
       });
       const data = await shopifyRes.json();
       if (!shopifyRes.ok) {
-        console.log(data.errors || data);
+        console.log('shopifyRes status', shopifyRes.status);
+        console.log('shopifyRes data', data.errors || data);
         throw new Error(JSON.stringify(data.errors || data));
       }
     })
