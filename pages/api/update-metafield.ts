@@ -1,5 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
+interface Metafield {
+  namespace: string;
+  key: string;
+  value: string;
+  type: string;
+  id?: string;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -125,7 +133,7 @@ export default async function handler(
   const allMetafields = metafieldsData.metafields || [];
 
   // メタフィールドの値を表示
-  console.log('Current metafields:', allMetafields.map((metafield: any) => ({
+  console.log('Current metafields:', allMetafields.map((metafield: Metafield) => ({
     namespace: metafield.namespace,
     key: metafield.key,
     value: metafield.value,
@@ -273,7 +281,7 @@ export default async function handler(
       },
     });
     const updatedMetafieldsData = await updatedMetafieldsRes.json();
-    console.log('Updated metafields:', updatedMetafieldsData.metafields.map((metafield: any) => ({
+    console.log('Updated metafields:', updatedMetafieldsData.metafields.map((metafield: Metafield) => ({
       namespace: metafield.namespace,
       key: metafield.key,
       value: metafield.value,
