@@ -128,10 +128,10 @@ export default async function handler(
     // 並行更新所有存在的欄位到 metafield
     await Promise.all(
       Object.keys(valueObj).map(async (key) => {
-        let metafieldKey = key;
-        let valueType = (valueTypes as Record<string, string>)[key] || 'single_line_text_field';
+        const metafieldKey = key;
+        const valueType = (valueTypes as Record<string, string>)[key] || 'single_line_text_field';
         let metafieldValue: string = valueObj[key];
-        let metafieldNamespace = namespace;
+        const metafieldNamespace = namespace;
         // 特殊処理 self_birth_date
         if (key === 'self_birth_date') {
           // birth_dateを保存
@@ -175,20 +175,16 @@ export default async function handler(
           );
 
           // birth_dateの保存
-          let birthDateUrl = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
-          let birthDateMethod = 'POST';
-          if (birthDateExisting?.id) {
-            birthDateUrl = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${birthDateExisting.id}.json`;
-            birthDateMethod = 'PUT';
-          }
+          const birthDateUrl = birthDateExisting?.id
+            ? `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${birthDateExisting.id}.json`
+            : `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
+          const birthDateMethod = birthDateExisting?.id ? 'PUT' : 'POST';
 
           // ageの保存
-          let ageUrl = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
-          let ageMethod = 'POST';
-          if (ageExisting?.id) {
-            ageUrl = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${ageExisting.id}.json`;
-            ageMethod = 'PUT';
-          }
+          const ageUrl = ageExisting?.id
+            ? `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${ageExisting.id}.json`
+            : `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
+          const ageMethod = ageExisting?.id ? 'PUT' : 'POST';
 
           await Promise.all([
             fetch(birthDateUrl, {
@@ -209,7 +205,7 @@ export default async function handler(
             })
           ]);
 
-          return; // 次のキーの処理へ
+          return;
         }
         if (key.endsWith('_relationship')) {
           // 若值為空字串，存成空陣列
@@ -223,12 +219,10 @@ export default async function handler(
           (metafield: { namespace: string; key: string; id: string }) => metafield.namespace === metafieldNamespace && metafield.key === metafieldKey
         );
         const metafieldId = existingMetafield?.id;
-        let url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
-        let method = 'POST';
-        if (metafieldId) {
-          url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${metafieldId}.json`;
-          method = 'PUT';
-        }
+        const url = metafieldId
+          ? `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${metafieldId}.json`
+          : `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
+        const method = metafieldId ? 'PUT' : 'POST';
         const metafieldPayload = {
           metafield: {
             namespace: metafieldNamespace,
@@ -265,4 +259,4 @@ export default async function handler(
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
-} 
+}
