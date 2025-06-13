@@ -17,7 +17,7 @@ export default async function handler(
 
   const SHOPIFY_SHOP_DOMAIN = process.env.SHOPIFY_SHOP_DOMAIN;
   const SHOPIFY_ADMIN_API_TOKEN = process.env.SHOPIFY_ADMIN_API_TOKEN;
-  const namespace = 'custom';
+  const defaultNamespace = 'custom';
   const keys = [
     'birth_date',
     'under30_a',
@@ -34,8 +34,8 @@ export default async function handler(
     'under30_d_birth',
   ];
   const valueTypes = {
+  	'birth_date': 'date',
     'age': "number_integer",
-    'birth_date': 'date',
     'under30_a': 'single_line_text_field', 
     'under30_a_relationship': 'list.single_line_text_field',
     'under30_a_birth': 'date',
@@ -134,7 +134,7 @@ export default async function handler(
       let metafieldKey = key;
       let valueType = (valueTypes as Record<string, string>)[key] || 'single_line_text_field';
       let metafieldValue: string = valueObj[key];
-      // 特殊處理 self_birth_date
+      // 特殊處理 birth_date
       if (key === 'birth_date') {
         metafieldKey = 'age';
         valueType = 'number_integer';
@@ -152,43 +152,6 @@ export default async function handler(
         }
         metafieldValue = age.toString();
       }
-      // 特殊處理 birth_date
-      if (key === 'birth_date') {
-        metafieldKey = 'birth_date';
-        valueType = 'date';
-        metafieldValue = valueObj[key];
-        let url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
-        let method = 'POST';
-        const existingMetafield = allMetafields.find(
-          (metafield: { namespace: string; key: string; id: string }) => metafield.namespace === 'facts' && metafield.key === metafieldKey
-        );
-        const metafieldId = existingMetafield?.id;
-        if (metafieldId) {
-          url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${metafieldId}.json`;
-          method = 'PUT';
-        }
-        const metafieldPayload = {
-          metafield: {
-            namespace: 'facts',
-            key: metafieldKey,
-            value: metafieldValue,
-            type: valueType,
-          },
-        };
-        const shopifyRes = await fetch(url, {
-          method,
-          headers: {
-            'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(metafieldPayload),
-        });
-        const data = await shopifyRes.json();
-        if (!shopifyRes.ok) {
-          throw new Error(JSON.stringify(data.errors || data));
-        }
-        return;
-      }
       if (key.endsWith('_relationship')) {
         // 若值為空字串，存成空陣列
         if (!metafieldValue) {
@@ -198,7 +161,10 @@ export default async function handler(
         }
       }
       const existingMetafield = allMetafields.find(
-        (metafield: { namespace: string; key: string; id: string }) => metafield.namespace === namespace && metafield.key === metafieldKey
+        (metafield: { namespace: string; key: string; id: string }) => {
+          const currentNamespace = key === 'birth_date' ? 'facts' : defaultNamespace;
+          return metafield.namespace === currentNamespace && metafield.key === metafieldKey;
+        }
       );
       const metafieldId = existingMetafield?.id;
       let url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
@@ -207,9 +173,10 @@ export default async function handler(
         url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${metafieldId}.json`;
         method = 'PUT';
       }
+      const currentNamespace = key === 'birth_date' ? 'facts' : defaultNamespace;
       const metafieldPayload = {
         metafield: {
-          namespace,
+          namespace: currentNamespace,
           key: metafieldKey,
           value: metafieldValue,
           type: valueType,
