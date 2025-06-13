@@ -51,7 +51,7 @@ export default async function handler(
   };
   const { customerId } = req.body;
 
-  if (!customerId || !namespace) {
+  if (!customerId || !defaultNamespace) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
