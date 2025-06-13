@@ -131,11 +131,10 @@ export default async function handler(
         let metafieldKey = key;
         let valueType = (valueTypes as Record<string, string>)[key] || 'single_line_text_field';
         let metafieldValue: string = valueObj[key];
-        // 特殊處理 self_birth_date
+        let metafieldNamespace = namespace;
+        // 特殊処理 self_birth_date
         if (key === 'self_birth_date') {
-          metafieldKey = 'age';
-          valueType = 'number_integer';
-          // 計算年齡（同樣以 4/1 為分界）
+          // birth_dateを保存
           const birthDate = new Date(metafieldValue);
           const today = new Date();
           const thisYear = today.getFullYear();
@@ -147,7 +146,70 @@ export default async function handler(
           if (birthThisYear > borderDate) {
             age--;
           }
-          metafieldValue = age.toString();
+
+          // birth_dateを保存
+          const birthDateMetafield = {
+            metafield: {
+              namespace: 'facts',
+              key: 'birth_date',
+              value: metafieldValue,
+              type: 'date',
+            },
+          };
+
+          // ageを保存
+          const ageMetafield = {
+            metafield: {
+              namespace: 'custom',
+              key: 'age',
+              value: age.toString(),
+              type: 'number_integer',
+            },
+          };
+
+          // 両方のメタフィールドを保存
+          const [birthDateExisting, ageExisting] = allMetafields.filter(
+            (metafield: { namespace: string; key: string; id: string }) => 
+              (metafield.namespace === 'facts' && metafield.key === 'birth_date') ||
+              (metafield.namespace === 'custom' && metafield.key === 'age')
+          );
+
+          // birth_dateの保存
+          let birthDateUrl = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
+          let birthDateMethod = 'POST';
+          if (birthDateExisting?.id) {
+            birthDateUrl = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${birthDateExisting.id}.json`;
+            birthDateMethod = 'PUT';
+          }
+
+          // ageの保存
+          let ageUrl = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
+          let ageMethod = 'POST';
+          if (ageExisting?.id) {
+            ageUrl = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${ageExisting.id}.json`;
+            ageMethod = 'PUT';
+          }
+
+          await Promise.all([
+            fetch(birthDateUrl, {
+              method: birthDateMethod,
+              headers: {
+                'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(birthDateMetafield),
+            }),
+            fetch(ageUrl, {
+              method: ageMethod,
+              headers: {
+                'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(ageMetafield),
+            })
+          ]);
+
+          return; // 次のキーの処理へ
         }
         if (key.endsWith('_relationship')) {
           // 若值為空字串，存成空陣列
@@ -158,7 +220,7 @@ export default async function handler(
           }
         }
         const existingMetafield = allMetafields.find(
-          (metafield: { namespace: string; key: string; id: string }) => metafield.namespace === namespace && metafield.key === metafieldKey
+          (metafield: { namespace: string; key: string; id: string }) => metafield.namespace === metafieldNamespace && metafield.key === metafieldKey
         );
         const metafieldId = existingMetafield?.id;
         let url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
@@ -169,7 +231,7 @@ export default async function handler(
         }
         const metafieldPayload = {
           metafield: {
-            namespace,
+            namespace: metafieldNamespace,
             key: metafieldKey,
             value: metafieldValue,
             type: valueType,
