@@ -124,70 +124,83 @@ export default async function handler(
   const metafieldsData = await metafieldsRes.json();
   const allMetafields = metafieldsData.metafields || [];
 
-  // 並行更新所有存在的欄位到 metafield
-  await Promise.all(
-    Object.keys(valueObj).map(async (key) => {
-      let metafieldKey = key;
-      let valueType = (valueTypes as Record<string, string>)[key] || 'single_line_text_field';
-      let metafieldValue: string = valueObj[key];
-      // 特殊處理 self_birth_date
-      if (key === 'self_birth_date') {
-        metafieldKey = 'age';
-        valueType = 'number_integer';
-        // 計算年齡（同樣以 4/1 為分界）
-        const birthDate = new Date(metafieldValue);
-        const today = new Date();
-        const thisYear = today.getFullYear();
-        const borderMonth = 3; // 4月
-        const borderDay = 1;
-        const borderDate = new Date(thisYear, borderMonth, borderDay);
-        let age = thisYear - birthDate.getFullYear();
-        const birthThisYear = new Date(thisYear, birthDate.getMonth(), birthDate.getDate());
-        if (birthThisYear > borderDate) {
-          age--;
+  try {
+    // 並行更新所有存在的欄位到 metafield
+    await Promise.all(
+      Object.keys(valueObj).map(async (key) => {
+        let metafieldKey = key;
+        let valueType = (valueTypes as Record<string, string>)[key] || 'single_line_text_field';
+        let metafieldValue: string = valueObj[key];
+        // 特殊處理 self_birth_date
+        if (key === 'self_birth_date') {
+          metafieldKey = 'age';
+          valueType = 'number_integer';
+          // 計算年齡（同樣以 4/1 為分界）
+          const birthDate = new Date(metafieldValue);
+          const today = new Date();
+          const thisYear = today.getFullYear();
+          const borderMonth = 3; // 4月
+          const borderDay = 1;
+          const borderDate = new Date(thisYear, borderMonth, borderDay);
+          let age = thisYear - birthDate.getFullYear();
+          const birthThisYear = new Date(thisYear, birthDate.getMonth(), birthDate.getDate());
+          if (birthThisYear > borderDate) {
+            age--;
+          }
+          metafieldValue = age.toString();
         }
-        metafieldValue = age.toString();
-      }
-      if (key.endsWith('_relationship')) {
-        // 若值為空字串，存成空陣列
-        if (!metafieldValue) {
-          metafieldValue = JSON.stringify([]);
-        } else {
-          metafieldValue = JSON.stringify([metafieldValue]);
+        if (key.endsWith('_relationship')) {
+          // 若值為空字串，存成空陣列
+          if (!metafieldValue) {
+            metafieldValue = JSON.stringify([]);
+          } else {
+            metafieldValue = JSON.stringify([metafieldValue]);
+          }
         }
-      }
-      const existingMetafield = allMetafields.find(
-        (metafield: { namespace: string; key: string; id: string }) => metafield.namespace === namespace && metafield.key === metafieldKey
-      );
-      const metafieldId = existingMetafield?.id;
-      let url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
-      let method = 'POST';
-      if (metafieldId) {
-        url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${metafieldId}.json`;
-        method = 'PUT';
-      }
-      const metafieldPayload = {
-        metafield: {
-          namespace,
+        const existingMetafield = allMetafields.find(
+          (metafield: { namespace: string; key: string; id: string }) => metafield.namespace === namespace && metafield.key === metafieldKey
+        );
+        const metafieldId = existingMetafield?.id;
+        let url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
+        let method = 'POST';
+        if (metafieldId) {
+          url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${metafieldId}.json`;
+          method = 'PUT';
+        }
+        const metafieldPayload = {
+          metafield: {
+            namespace,
+            key: metafieldKey,
+            value: metafieldValue,
+            type: valueType,
+          },
+        };
+        const shopifyRes = await fetch(url, {
+          method,
+          headers: {
+            'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(metafieldPayload),
+        });
+        const data = await shopifyRes.json();
+        console.log('Metafield update response:', {
           key: metafieldKey,
-          value: metafieldValue,
-          type: valueType,
-        },
-      };
-      const shopifyRes = await fetch(url, {
-        method,
-        headers: {
-          'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(metafieldPayload),
-      });
-      const data = await shopifyRes.json();
-      if (!shopifyRes.ok) {
-        throw new Error(JSON.stringify(data.errors || data));
-      }
-    })
-  );
+          status: shopifyRes.status,
+          data: data
+        });
+        if (!shopifyRes.ok) {
+          throw new Error(JSON.stringify(data.errors || data));
+        }
+      })
+    );
 
-  res.status(200).json({ tags });
+    res.status(200).json({ tags });
+  } catch (error) {
+    console.error('Error updating metafields:', error);
+    res.status(500).json({ 
+      error: 'Failed to update metafields',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 } 
