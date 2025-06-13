@@ -1,13 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-interface Metafield {
-  namespace: string;
-  key: string;
-  value: string;
-  type: string;
-  id?: string;
-}
-
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -132,169 +124,83 @@ export default async function handler(
   const metafieldsData = await metafieldsRes.json();
   const allMetafields = metafieldsData.metafields || [];
 
-  // メタフィールドの値を表示
-  console.log('Current metafields:', allMetafields.map((metafield: Metafield) => ({
-    namespace: metafield.namespace,
-    key: metafield.key,
-    value: metafield.value,
-    type: metafield.type
-  })));
+  // 更新前のmetafieldの値をログ出力
+  console.log('Before Update Metafields:', allMetafields);
 
-  try {
-    // 並行更新所有存在的欄位到 metafield
-    await Promise.all(
-      Object.keys(valueObj).map(async (key) => {
-        const metafieldKey = key;
-        const valueType = (valueTypes as Record<string, string>)[key] || 'single_line_text_field';
-        let metafieldValue: string = valueObj[key];
-        const metafieldNamespace = namespace;
-        // 特殊処理 self_birth_date
-        if (key === 'self_birth_date') {
-          // birth_dateを保存
-          const birthDate = new Date(metafieldValue);
-          const today = new Date();
-          const thisYear = today.getFullYear();
-          const borderMonth = 3; // 4月
-          const borderDay = 1;
-          const borderDate = new Date(thisYear, borderMonth, borderDay);
-          let age = thisYear - birthDate.getFullYear();
-          const birthThisYear = new Date(thisYear, birthDate.getMonth(), birthDate.getDate());
-          if (birthThisYear > borderDate) {
-            age--;
-          }
-
-          // birth_dateを保存
-          const birthDateMetafield = {
-            metafield: {
-              namespace: 'facts',
-              key: 'birth_date',
-              value: metafieldValue,
-              type: 'date',
-            },
-          };
-
-          // ageを保存
-          const ageMetafield = {
-            metafield: {
-              namespace: 'custom',
-              key: 'age',
-              value: age.toString(),
-              type: 'number_integer',
-            },
-          };
-
-          // 両方のメタフィールドを保存
-          const [birthDateExisting, ageExisting] = allMetafields.filter(
-            (metafield: { namespace: string; key: string; id: string }) => 
-              (metafield.namespace === 'facts' && metafield.key === 'birth_date') ||
-              (metafield.namespace === 'custom' && metafield.key === 'age')
-          );
-
-          // birth_dateの保存
-          const birthDateUrl = birthDateExisting?.id
-            ? `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${birthDateExisting.id}.json`
-            : `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
-          const birthDateMethod = birthDateExisting?.id ? 'PUT' : 'POST';
-
-          // ageの保存
-          const ageUrl = ageExisting?.id
-            ? `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${ageExisting.id}.json`
-            : `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
-          const ageMethod = ageExisting?.id ? 'PUT' : 'POST';
-
-          await Promise.all([
-            fetch(birthDateUrl, {
-              method: birthDateMethod,
-              headers: {
-                'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(birthDateMetafield),
-            }),
-            fetch(ageUrl, {
-              method: ageMethod,
-              headers: {
-                'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(ageMetafield),
-            })
-          ]);
-
-          return;
+  // 並行更新所有存在的欄位到 metafield
+  await Promise.all(
+    Object.keys(valueObj).map(async (key) => {
+      let metafieldKey = key;
+      let valueType = (valueTypes as Record<string, string>)[key] || 'single_line_text_field';
+      let metafieldValue: string = valueObj[key];
+      // 特殊處理 self_birth_date
+      if (key === 'self_birth_date') {
+        metafieldKey = 'age';
+        valueType = 'number_integer';
+        // 計算年齡（同樣以 4/1 為分界）
+        const birthDate = new Date(metafieldValue);
+        const today = new Date();
+        const thisYear = today.getFullYear();
+        const borderMonth = 3; // 4月
+        const borderDay = 1;
+        const borderDate = new Date(thisYear, borderMonth, borderDay);
+        let age = thisYear - birthDate.getFullYear();
+        const birthThisYear = new Date(thisYear, birthDate.getMonth(), birthDate.getDate());
+        if (birthThisYear > borderDate) {
+          age--;
         }
-        if (key.endsWith('_relationship')) {
-          // 若值為空字串，存成空陣列
-          if (!metafieldValue) {
-            metafieldValue = JSON.stringify([]);
-          } else {
-            metafieldValue = JSON.stringify([metafieldValue]);
-          }
+        metafieldValue = age.toString();
+      }
+      if (key.endsWith('_relationship')) {
+        // 若值為空字串，存成空陣列
+        if (!metafieldValue) {
+          metafieldValue = JSON.stringify([]);
+        } else {
+          metafieldValue = JSON.stringify([metafieldValue]);
         }
-        const existingMetafield = allMetafields.find(
-          (metafield: { namespace: string; key: string; id: string }) => metafield.namespace === metafieldNamespace && metafield.key === metafieldKey
-        );
-        const metafieldId = existingMetafield?.id;
-        const url = metafieldId
-          ? `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${metafieldId}.json`
-          : `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
-        const method = metafieldId ? 'PUT' : 'POST';
-        console.log('metafieldPayload:', {
-          namespace: metafieldNamespace,
+      }
+      const existingMetafield = allMetafields.find(
+        (metafield: { namespace: string; key: string; id: string }) => metafield.namespace === namespace && metafield.key === metafieldKey
+      );
+      const metafieldId = existingMetafield?.id;
+      let url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`;
+      let method = 'POST';
+      if (metafieldId) {
+        url = `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/metafields/${metafieldId}.json`;
+        method = 'PUT';
+      }
+      const metafieldPayload = {
+        metafield: {
+          namespace,
           key: metafieldKey,
           value: metafieldValue,
           type: valueType,
-        });
-        const metafieldPayload = {
-          metafield: {
-            namespace: metafieldNamespace,
-            key: metafieldKey,
-            value: metafieldValue,
-            type: valueType,
-          },
-        };
-        const shopifyRes = await fetch(url, {
-          method,
-          headers: {
-            'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(metafieldPayload),
-        });
-        const data = await shopifyRes.json();
-        console.log('Metafield update response:', {
-          key: metafieldKey,
-          status: shopifyRes.status,
-          data: data
-        });
-        if (!shopifyRes.ok) {
-          throw new Error(JSON.stringify(data.errors || data));
-        }
-      })
-    );
+        },
+      };
+      const shopifyRes = await fetch(url, {
+        method,
+        headers: {
+          'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(metafieldPayload),
+      });
+      const data = await shopifyRes.json();
+      if (!shopifyRes.ok) {
+        throw new Error(JSON.stringify(data.errors || data));
+      }
+    })
+  );
 
-    // 更新後のメタフィールドを取得して表示
-    const updatedMetafieldsRes = await fetch(`https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`, {
-      headers: {
-        'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
-        'Content-Type': 'application/json',
-      },
-    });
-    const updatedMetafieldsData = await updatedMetafieldsRes.json();
-    console.log('Updated metafields:', updatedMetafieldsData.metafields.map((metafield: Metafield) => ({
-      namespace: metafield.namespace,
-      key: metafield.key,
-      value: metafield.value,
-      type: metafield.type
-    })));
+  // 更新後のmetafieldの値を取得してログ出力
+  const updatedMetafieldsRes = await fetch(`https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`, {
+    headers: {
+      'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
+      'Content-Type': 'application/json',
+    },
+  });
+  const updatedMetafieldsData = await updatedMetafieldsRes.json();
+  console.log('After Update Metafields:', updatedMetafieldsData.metafields);
 
-    res.status(200).json({ tags });
-  } catch (error) {
-    console.error('Error updating metafields:', error);
-    res.status(500).json({ 
-      error: 'Failed to update metafields',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-}
-
+  res.status(200).json({ tags });
+} 
