@@ -188,6 +188,8 @@ export default async function handler(
         body: JSON.stringify(metafieldPayload),
       });
       const data = await shopifyRes.json();
+      console.log('shopifyRes status', shopifyRes.status);
+      console.log('shopifyRes data', data);
       if (!shopifyRes.ok) {
         console.log('shopifyRes status', shopifyRes.status);
         console.log('shopifyRes data', data.errors || data);
