@@ -181,6 +181,11 @@ export default async function handler(
     body: JSON.stringify({ metafields: metafieldPayloads }),
   });
 
+  const data = await shopifyRes.json();
+  if (!shopifyRes.ok) {
+    throw new Error(JSON.stringify(data.errors || data));
+  }
+
   // 更新後のmetafieldの値を取得してログ出力
   const updatedMetafieldsRes = await fetch(`https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`, {
     headers: {
