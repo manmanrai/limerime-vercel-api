@@ -124,6 +124,14 @@ export default async function handler(
   const metafieldsData = await metafieldsRes.json();
   const allMetafields = metafieldsData.metafields || [];
 
+  // メタフィールドの値を表示
+  console.log('Current metafields:', allMetafields.map((metafield: any) => ({
+    namespace: metafield.namespace,
+    key: metafield.key,
+    value: metafield.value,
+    type: metafield.type
+  })));
+
   try {
     // 並行更新所有存在的欄位到 metafield
     await Promise.all(
@@ -256,6 +264,21 @@ export default async function handler(
         }
       })
     );
+
+    // 更新後のメタフィールドを取得して表示
+    const updatedMetafieldsRes = await fetch(`https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2025-04/customers/${customerId}/metafields.json`, {
+      headers: {
+        'X-Shopify-Access-Token': SHOPIFY_ADMIN_API_TOKEN as string,
+        'Content-Type': 'application/json',
+      },
+    });
+    const updatedMetafieldsData = await updatedMetafieldsRes.json();
+    console.log('Updated metafields:', updatedMetafieldsData.metafields.map((metafield: any) => ({
+      namespace: metafield.namespace,
+      key: metafield.key,
+      value: metafield.value,
+      type: metafield.type
+    })));
 
     res.status(200).json({ tags });
   } catch (error) {
